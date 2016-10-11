@@ -18,11 +18,10 @@
 package org.dice.solrenhancements.morelikethis;
 
 import com.google.common.base.Strings;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.payloads.PayloadTermQuery;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.*;
+//import org.apache.lucene.queries.payloads.PayloadScoreQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.common.params.*;
 import org.apache.solr.common.util.ContentStream;
@@ -221,14 +220,17 @@ public class DiceMoreLikeThisHandler extends RequestHandlerBase
         List clauses = ((BooleanQuery)query).clauses();
         for( Object o : clauses ) {
             Query q = ((BooleanClause)o).getQuery();
+            //TODO: what's the boost value?
+            float boost = 0;
+            BoostQuery bq = new BoostQuery(q, boost);
             InterestingTerm it = new InterestingTerm();
-            it.boost = q.getBoost();
+            it.boost = bq.getBoost();
             if(q instanceof TermQuery) {
                 TermQuery tq = (TermQuery)q;
                 it.term = tq.getTerm();
             }
-            else if(q instanceof PayloadTermQuery){
-                PayloadTermQuery ptq = (PayloadTermQuery)q;
+            else if(q instanceof SpanTermQuery){
+                SpanTermQuery ptq = (SpanTermQuery)q;
                 it.term = ptq.getTerm();
             }
             terms.add(it);
@@ -272,7 +274,15 @@ public class DiceMoreLikeThisHandler extends RequestHandlerBase
         }
         else {
             SimpleFacets f = new SimpleFacets(req, mltDocs.docSet, params );
-            rsp.add( "facet_counts", f.getFacetCounts() );
+            //TODO: which getFacetCounts
+//          rsp.add( "facet_counts", f.getFacetCounts() );
+            try {
+                rsp.add( "facet_counts", f.getFacetFieldCounts() );
+            } catch (IOException e) {
+                e.printStackTrace();
+            } catch (SyntaxError syntaxError) {
+                syntaxError.printStackTrace();
+            }
         }
     }
 
@@ -319,7 +329,7 @@ public class DiceMoreLikeThisHandler extends RequestHandlerBase
                     }
                 }
             } catch (Exception e) {
-                SolrException.log(SolrCore.log, "Exception during debug", e);
+                SolrException.log(SolrCore.requestLog, "Exception during debug", e);
                 rsp.add("exception_during_debug", SolrException.toStr(e));
             }
         }
